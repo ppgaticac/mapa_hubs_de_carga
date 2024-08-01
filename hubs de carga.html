@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Hubs de Carga</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        header {
+            background-color: #0057B8;
+            padding: 10px;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #logo {
+            height: 50px;
+        }
+
+        #map {
+            height: 100vh;
+            width: 75%;
+            margin-top: 60px; /* espacio para el header */
+            float: left;
+        }
+
+        #info {
+            width: 25%;
+            float: left;
+            padding: 10px;
+            background-color: #f5f5f5;
+            margin-top: 60px; /* espacio para el header */
+            box-sizing: border-box;
+        }
+
+        input {
+            width: calc(100% - 150px);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 10px;
+            border: none;
+            background-color: #0057B8;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        button:hover {
+            background-color: #003b6f;
+        }
+
+        .hub-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .hub-list li {
+            padding: 5px;
+            border-bottom: 1px solid #ddd;
+            color: black; /* Letra negra por defecto */
+        }
+
+        .hub-list .within-radius {
+            background-color: #d3ffd3;
+        }
+
+        .hub-list .outside-radius {
+            background-color: #ffd3d3;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="https://raw.githubusercontent.com/ppgaticac/mapa_hubs_carga/main/logo-ea1fcd3296ac48693db3c00b710e2381%20(1).jpg" alt="Logo de la empresa" id="logo">
+    </header>
+    <div id="map"></div>
+    <div id="info">
+        <input id="address" type="text" placeholder="Buscar dirección">
+        <button onclick="geocodeAddress()">Buscar</button>
+        <button onclick="resetSearch()">Reiniciar búsqueda</button>
+        <ul id="hubList" class="hub-list"></ul>
+    </div>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAovSlHVEYWgZf3a_Skux_nwRCcPZUM6rI&libraries=places,geometry"></script>
+    <script>
+        let map;
+        let geocoder;
+        let searchMarker;
+        let closestHubCircle;
+        let hubs = [
+            { name: "Ciudad del niño", status: 'under_construction', lat: -33.5033, lng: -70.6405 },
+            { name: "Florida center", status: 'under_construction', lat: -33.4666, lng: -70.5985 },
+            { name: "Portal el Llano", status: 'under_construction', lat: -33.5036, lng: -70.6485 },
+            { name: "Alto San Francisco", status: 'under_construction', lat: -33.4644, lng: -70.6466 },
+            { name: "Nathaniel Cox", status: 'under_construction', lat: -33.4656, lng: -70.6501 },
+            { name: "Vicuña Mackenna", status: 'under_construction', lat: -33.4578, lng: -70.6506 },
+            { name: "Ñuble", status: 'under_construction', lat: -33.4591, lng: -70.6292 },
+            { name: "Independencia", status: 'under_construction', lat: -33.4262, lng: -70.6518 },
+            { name: "Parque Arauco", status: 'active', lat: -33.400187, lng: -70.576344 },
+            { name: "Espacio Urbano Las Rejas", status: 'active', lat: -33.4571, lng: -70.6498 },
+        ];
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: -33.4489, lng: -70.6693 }, // Coordenadas de Santiago
+                zoom: 12, // Nivel de zoom ajustado para la Región Metropolitana
+            });
+
+            geocoder = new google.maps.Geocoder();
+
+            hubs.forEach(hub => {
+                const marker = new google.maps.Marker({
+                    position: { lat: hub.lat, lng: hub.lng },
+                    map: map,
+                    icon: hub.status === 'active' ? 'http://maps.google.com/mapfiles/ms/icons/green-dot.png' : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                    title: hub.name
+                });
+
+                const infowindow = new google.maps.InfoWindow({
+                    content: `<strong>${hub.name}</strong>`
+                });
+
+                marker.addListener('mouseover', () => {
+                    infowindow.open(map, marker);
+                });
+
+                marker.addListener('mouseout', () => {
+                    infowindow.close();
+                });
+
+                marker.addListener('click', () => {
+                    infowindow.open(map, marker);
+                });
+            });
+
+            updateHubList();
+        }
+
+        function geocodeAddress() {
+            const address = document.getElementById('address').value;
+            geocoder.geocode({ address: address }, (results, status) => {
+                if (status === 'OK') {
+                    const location = results[0].geometry.location;
+
+                    // No eliminar el marcador anterior
+                    searchMarker = new google.maps.Marker({
+                        position: location,
+                        map: map,
+                        icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png', // Cambiar color del marcador a azul
+                        title: 'Dirección buscada'
+                    });
+
+                    const infowindow = new google.maps.InfoWindow({
+                        content: 'Dirección buscada'
+                    });
+
+                    searchMarker.addListener('mouseover', () => {
+                        infowindow.open(map, searchMarker);
+                    });
+
+                    searchMarker.addListener('mouseout', () => {
+                        infowindow.close();
+                    });
+
+                    searchMarker.addListener('click', () => {
+                        infowindow.open(map, searchMarker);
+                    });
+
+                    map.setCenter(location); // Centrar el mapa en la dirección buscada
+                    findClosestHub(location);
+                } else {
+                    alert('Geocode was not successful for the following reason: ' + status);
+                }
+            });
+        }
+
+        function findClosestHub(addressLocation) {
+            let closestHub = null;
+            let minDistance = Infinity;
+
+            hubs.forEach(hub => {
+                const hubLocation = new google.maps.LatLng(hub.lat, hub.lng);
+                const distance = google.maps.geometry.spherical.computeDistanceBetween(addressLocation, hubLocation);
+
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestHub = hub;
+                }
+            });
+
+            if (closestHubCircle) closestHubCircle.setMap(null); // Limpiar el círculo anterior
+
+            closestHubCircle = new google.maps.Circle({
+                map: map,
+                radius: 3000, // metros
+                fillColor: '#FF0000', // Cambiar color del círculo a rojo
+                fillOpacity: 0.2,
+                strokeColor: '#FF0000',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                center: { lat: closestHub.lat, lng: closestHub.lng }
+            });
+
+            updateHubList(addressLocation);
+        }
+
+        function updateHubList(addressLocation = null) {
+            const hubList = document.getElementById('hubList');
+            hubList.innerHTML = '';
+
+            hubs.forEach(hub => {
+                const hubLocation = new google.maps.LatLng(hub.lat, hub.lng);
+                let distance = null;
+                if (addressLocation) {
+                    distance = google.maps.geometry.spherical.computeDistanceBetween(addressLocation, hubLocation);
+                }
+                const listItem = document.createElement('li');
+                listItem.textContent = `${hub.name}`;
+                listItem.classList.add(hub.status === 'active' ? 'active' : 'under-construction');
+
+                if (distance !== null) {
+                    if (distance <= 3000) {
+                        listItem.classList.add('within-radius');
+                        listItem.classList.remove('outside-radius');
+                    } else {
+                        listItem.classList.add('outside-radius');
+                        listItem.classList.remove('within-radius');
+                    }
+                }
+
+                hubList.appendChild(listItem);
+            });
+        }
+
+        function resetSearch() {
+            window.location.reload(); // Recargar la página para reiniciar la búsqueda
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
